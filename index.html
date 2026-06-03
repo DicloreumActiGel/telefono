@@ -1,1 +1,107 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zombie Tower Defense</title>
+    <style>
+        /* STILI GENERALI */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50; /* Sfondo scuro per tutta la pagina */
+            color: white;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
 
+        /* STILI DEL MENU PRINCIPALE */
+        #main-menu {
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: #27ae60; /* Verde zombie */
+        }
+
+        /* Stile dei bottoni delle mappe */
+        .map-btn {
+            display: block;
+            width: 250px;
+            padding: 15px;
+            margin: 15px auto;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background-color: #34495e;
+            color: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .map-btn:hover {
+            background-color: #27ae60;
+            transform: scale(1.05); /* Effetto ingrandimento al passaggio del mouse */
+        }
+
+        /* STILI DELL'AREA DI GIOCO */
+        #game-container {
+            display: none; /* Inizialmente NASCOSTO, lo mostreremo tramite JavaScript */
+            text-align: center;
+        }
+
+        /* Barra in alto con le informazioni dell'economia */
+        #ui-bar {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            background-color: #1a252f;
+            padding: 10px 20px;
+            box-sizing: border-box;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* La "tela" dove verranno disegnati zombie e torri */
+        canvas {
+            background-color: #3e5141; /* Colore base del terreno */
+            border: 4px solid #1a252f;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0px 0px 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-menu">
+        <h1>Zombie Tower Defense</h1>
+        <p>Seleziona una mappa per iniziare a giocare:</p>
+        
+        <button class="map-btn" onclick="startGame('Pianura')">Mappa 1 (Pianura)</button>
+        <button class="map-btn" onclick="startGame('Città')">Mappa 2 (Città)</button>
+        <button class="map-btn" onclick="startGame('Cimitero')">Mappa 3 (Cimitero)</button>
+    </div>
+
+    <div id="game-container">
+        <div id="ui-bar">
+            <span id="map-name">Mappa: -</span>
+            <span id="money-display">Monete: 200</span>
+            <span id="round-display">Round: 1</span>
+        </div>
+        
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script src="game.js"></script>
+
+</body>
+</html>

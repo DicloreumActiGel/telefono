@@ -4,7 +4,6 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Variabili UI
 const uiMapName = document.getElementById('map-name');
 const uiMoney = document.getElementById('money-display');
 const uiRound = document.getElementById('round-display');
@@ -17,16 +16,22 @@ let towers = [];
 let projectiles = [];
 let waypoints = [];
 
-// Variabili per le ondate
+// Variabili Ondate
 let enemiesToSpawn = 10;
 let spawnTimer = 0;
 let waveActive = true;
 
-// Selezione della torre (1 = Soldato, 2 = Cecchino, 3 = RPG)
+// Variabili UI e Pausa
 let selectedTowerType = 1; 
+let isPaused = false;
+let animationId; // Serve per fermare il ciclo di animazione
+
+// Coordinate del mouse per il Range
+let mouseX = 0;
+let mouseY = 0;
 
 // ==========================================
-// 2. CONFIGURAZIONI DELLE TORRI
+// 2. CONFIGURAZIONI TORRI E MAPPE
 // ==========================================
 const TOWER_STATS = {
     1: { name: "Soldato Semplice", cost: 100, range: 150, damage: 20, fireRate: 60, color: "blue", type: "normal" },
@@ -34,9 +39,6 @@ const TOWER_STATS = {
     3: { name: "Soldato RPG", cost: 500, range: 200, damage: 50, fireRate: 150, color: "orange", type: "splash", splashRadius: 80 }
 };
 
-// ==========================================
-// 3. MAPPE (Percorsi / Waypoints)
-// ==========================================
 const MAPS = {
     'Pianura': [ {x: 0, y: 100}, {x: 600, y: 100}, {x: 600, y: 500}, {x: 200, y: 500}, {x: 200, y: 300}, {x: 800, y: 300} ],
     'Città': [ {x: 400, y: 0}, {x: 400, y: 200}, {x: 100, y: 200}, {x: 100, y: 400}, {x: 700, y: 400}, {x: 700, y: 600} ],
@@ -44,33 +46,72 @@ const MAPS = {
 };
 
 // ==========================================
-// 4. FUNZIONE DI AVVIO GIOCO (Chiamata dall'HTML)
+// 3. FUNZIONI DI GESTIONE STATO (Avvio, Pausa, Menu)
 // ==========================================
 function startGame(mapName) {
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').style.display = 'block';
     
+    // Resetta tutte le variabili in caso stiamo ricominciando
+    money = 200;
+    round = 1;
+    enemies = [];
+    towers = [];
+    projectiles = [];
+    enemiesToSpawn = 10;
+    spawnTimer = 0;
+    waveActive = true;
+    isPaused = false;
+    
     uiMapName.innerText = `Mappa: ${mapName}`;
     waypoints = MAPS[mapName];
+    updateUI();
     
-    // Avvia il loop principale a 60 FPS
-    requestAnimationFrame(gameLoop);
+    // Avvia il loop
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+function togglePause() {
+    // Evita di mettere in pausa se siamo nel menu principale
+    if (document.getElementById('game-container').style.display === 'none') return;
+    
+    isPaused = !isPaused;
+    const pauseMenu = document.getElementById('pause-menu');
+    
+    if (isPaused) {
+        pauseMenu.style.display = 'flex'; // Mostra il menu
+    } else {
+        pauseMenu.style.display = 'none'; // Nascondi il menu
+        gameLoop(); // Riavvia il loop
+    }
+}
+
+function returnToMenu() {
+    isPaused = false;
+    document.getElementById('pause-menu').style.display = 'none';
+    document.getElementById('game-container').style.display = 'none';
+    document.getElementById('main-menu').style.display = 'block';
+    cancelAnimationFrame(animationId); // Ferma definitivamente il loop
+}
+
+function updateUI() {
+    uiMoney.innerText = `Monete: ${money}`;
+    uiRound.innerText = `Round: ${round}`;
 }
 
 // ==========================================
-// 5. CLASSI DEGLI OGGETTI (Nemici, Torri, Proiettili)
+// 4. CLASSI (Nemici, Torri, Proiettili)
 // ==========================================
 class Enemy {
     constructor() {
         this.x = waypoints[0].x;
         this.y = waypoints[0].y;
         this.waypointIndex = 1;
-        this.speed = 1.5 + (round * 0.1); // Diventano un po' più veloci ogni round
-        this.hp = 50 + (round * 20);      // Più vita ogni round
+        this.speed = 1.5 + (round * 0.1);
+        this.hp = 50 + (round * 20);
         this.maxHp = this.hp;
-        this.radius = 15; // Dimensione del placeholder
+        this.radius = 15;
     }
-
     move() {
         const target = waypoints[this.waypointIndex];
         const dx = target.x - this.x;
@@ -86,15 +127,12 @@ class Enemy {
             this.y += (dy / distance) * this.speed;
         }
     }
-
     draw() {
-        // TODO: In futuro sostituisci questo blocco con ctx.drawImage(tuoZombieSprite, this.x, this.y, ...)
-        ctx.fillStyle = "green"; // Placeholder Zombie
+        ctx.fillStyle = "green";
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Barra della vita
         ctx.fillStyle = "red";
         ctx.fillRect(this.x - 15, this.y - 25, 30, 5);
         ctx.fillStyle = "lime";
@@ -108,14 +146,11 @@ class Tower {
         this.y = y;
         this.stats = TOWER_STATS[typeIndex];
         this.cooldown = 0;
-        this.size = 30; // Dimensione del placeholder
+        this.size = 30;
     }
-
     update() {
         if (this.cooldown > 0) this.cooldown--;
-
         if (this.cooldown === 0) {
-            // Trova il nemico più vicino nel raggio d'azione
             let target = null;
             let minDistance = Infinity;
 
@@ -133,17 +168,12 @@ class Tower {
             }
         }
     }
-
     shoot(target) {
         projectiles.push(new Projectile(this.x, this.y, target, this.stats));
     }
-
     draw() {
-        // TODO: Qui metterai ctx.drawImage(spriteTorre...)
-        ctx.fillStyle = this.stats.color; // Placeholder Torre
+        ctx.fillStyle = this.stats.color;
         ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
-        
-        // Disegna una piccola canna del fucile
         ctx.fillStyle = "gray";
         ctx.fillRect(this.x, this.y - 5, 20, 10);
     }
@@ -156,21 +186,16 @@ class Projectile {
         this.target = target;
         this.stats = towerStats;
         this.speed = 8;
-        this.hitEnemies = []; // Per tenere traccia dei nemici già colpiti dal Cecchino
+        this.hitEnemies = [];
     }
-
     move() {
-        // Se il bersaglio originale muore prima di essere colpito, il proiettile va dritto
         const dx = this.target.x - this.x;
         const dy = this.target.y - this.y;
         const distance = Math.hypot(dx, dy);
-
         this.x += (dx / distance) * this.speed;
         this.y += (dy / distance) * this.speed;
     }
-
     draw() {
-        // TODO: Sostituire con sprite del proiettile
         ctx.fillStyle = "yellow";
         ctx.beginPath();
         ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
@@ -179,24 +204,29 @@ class Projectile {
 }
 
 // ==========================================
-// 6. CONTROLLI DEL GIOCATORE
+// 5. INPUT E CONTROLLI
 // ==========================================
 
-// Cambia torre con i tasti 1, 2, 3
+// Cambia torre (1, 2, 3) e Mette in Pausa (Esc)
 document.addEventListener('keydown', (e) => {
     if (e.key === '1') selectedTowerType = 1;
     if (e.key === '2') selectedTowerType = 2;
     if (e.key === '3') selectedTowerType = 3;
+    if (e.key === 'Escape') togglePause();
 });
 
-// Piazza la torre cliccando sul Canvas
-canvas.addEventListener('click', (e) => {
+// Traccia la posizione del cursore per il Range
+canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+});
+
+// Piazza la torre cliccando sul Canvas (se non in pausa)
+canvas.addEventListener('click', (e) => {
+    if (isPaused) return;
 
     const cost = TOWER_STATS[selectedTowerType].cost;
-
     if (money >= cost) {
         towers.push(new Tower(mouseX, mouseY, selectedTowerType));
         money -= cost;
@@ -205,13 +235,8 @@ canvas.addEventListener('click', (e) => {
 });
 
 // ==========================================
-// 7. GESTIONE COLLISIONI E LOGICA ONDATE
+// 6. GESTIONE ONDATE
 // ==========================================
-function updateUI() {
-    uiMoney.innerText = `Monete: ${money}`;
-    uiRound.innerText = `Round: ${round}`;
-}
-
 function handleWaves() {
     if (waveActive) {
         spawnTimer++;
@@ -221,28 +246,27 @@ function handleWaves() {
             spawnTimer = 0;
         }
 
-        // Fine del round
         if (enemiesToSpawn === 0 && enemies.length === 0) {
             waveActive = false;
-            money += 100; // Bonus fine round
+            money += 100; 
             round++;
-            enemiesToSpawn = 10 + (round * 5); // Aumenta il numero di nemici
+            enemiesToSpawn = 10 + (round * 5); 
             updateUI();
-            
-            // Pausa di 3 secondi prima del round successivo
-            setTimeout(() => { waveActive = true; }, 3000);
+            setTimeout(() => { if (!isPaused) waveActive = true; }, 3000);
         }
     }
 }
 
 // ==========================================
-// 8. LOOP PRINCIPALE DEL GIOCO
+// 7. LOOP PRINCIPALE DEL GIOCO
 // ==========================================
 function gameLoop() {
-    // 1. Pulisci lo schermo
+    // Se il gioco è in pausa, interrompi l'aggiornamento
+    if (isPaused) return;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Disegna il percorso (Path)
+    // Disegna percorso
     ctx.strokeStyle = "#5a4d41";
     ctx.lineWidth = 40;
     ctx.lineJoin = "round";
@@ -254,47 +278,37 @@ function gameLoop() {
     }
     ctx.stroke();
 
-    // Mostra la torre selezionata (UI In-Game)
-    ctx.fillStyle = "white";
-    ctx.font = "16px Arial";
-    ctx.fillText(`Torre Selezionata: ${TOWER_STATS[selectedTowerType].name} (Costo: ${TOWER_STATS[selectedTowerType].cost}) - Premi 1, 2 o 3 per cambiare`, 10, 25);
-
     handleWaves();
 
-    // 3. Aggiorna e disegna Torri
+    // Aggiorna e disegna Torri
     towers.forEach(tower => {
         tower.update();
         tower.draw();
     });
 
-    // 4. Aggiorna e disegna Nemici
+    // Aggiorna e disegna Nemici
     for (let i = enemies.length - 1; i >= 0; i--) {
         let e = enemies[i];
         e.move();
         e.draw();
-
-        // Se arriva alla fine del percorso, eliminalo (potresti togliere vite al giocatore in futuro)
         if (e.waypointIndex >= waypoints.length) {
             enemies.splice(i, 1);
         }
     }
 
-    // 5. Aggiorna Proiettili e Collisioni
+    // Aggiorna e disegna Proiettili e Collisioni
     for (let i = projectiles.length - 1; i >= 0; i--) {
         let p = projectiles[i];
         p.move();
         p.draw();
 
-        // Controlla la collisione con i nemici
         for (let j = enemies.length - 1; j >= 0; j--) {
             let e = enemies[j];
             let dist = Math.hypot(p.x - e.x, p.y - e.y);
 
             if (dist < e.radius + 4 && !p.hitEnemies.includes(e)) {
-                
-                // DANNO AD AREA (RPG)
                 if (p.stats.type === "splash") {
-                    enemies.forEach((splashEnemy, splashIndex) => {
+                    enemies.forEach((splashEnemy) => {
                         let splashDist = Math.hypot(e.x - splashEnemy.x, e.y - splashEnemy.y);
                         if (splashDist <= p.stats.splashRadius) {
                             splashEnemy.hp -= p.stats.damage;
@@ -305,26 +319,24 @@ function gameLoop() {
                             }
                         }
                     });
-                    projectiles.splice(i, 1); // L'RPG esplode e sparisce
+                    projectiles.splice(i, 1);
                     break;
                 }
 
-                // DANNO PIERCING (Cecchino - colpisce 2 nemici)
                 if (p.stats.type === "pierce") {
                     e.hp -= p.stats.damage;
-                    p.hitEnemies.push(e); // Registra che ha colpito questo nemico
+                    p.hitEnemies.push(e);
                     if (e.hp <= 0) {
                         money += 1;
                         updateUI();
                         enemies.splice(j, 1);
                     }
                     if (p.hitEnemies.length >= 2) {
-                        projectiles.splice(i, 1); // Sparisce dopo 2 colpi
+                        projectiles.splice(i, 1);
                         break;
                     }
                 }
 
-                // DANNO NORMALE (Soldato Semplice)
                 if (p.stats.type === "normal") {
                     e.hp -= p.stats.damage;
                     if (e.hp <= 0) {
@@ -332,13 +344,26 @@ function gameLoop() {
                         updateUI();
                         enemies.splice(j, 1);
                     }
-                    projectiles.splice(i, 1); // Sparisce al primo colpo
+                    projectiles.splice(i, 1);
                     break;
                 }
             }
         }
     }
 
-    // Richiama il prossimo frame
-    requestAnimationFrame(gameLoop);
+    // DISGNA IL RANGE DELLA TORRE SUL CURSORE
+    const currentTower = TOWER_STATS[selectedTowerType];
+    ctx.fillStyle = "rgba(255, 255, 255, 0.2)"; // Cerchio bianco semitrasparente
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, currentTower.range, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Mostra info torre selezionata
+    ctx.fillStyle = "white";
+    ctx.font = "16px Arial";
+    ctx.fillText(`Torre Selezionata: ${currentTower.name} (Costo: ${currentTower.cost}) - Premi 1, 2 o 3 per cambiare`, 10, 25);
+
+    animationId = requestAnimationFrame(gameLoop);
 }
